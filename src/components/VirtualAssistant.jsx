@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Phone, X, MessageCircle } from 'lucide-react';
 
 export default function VirtualAssistant() {
-  const [isOpen, setIsOpen] = useState(true); // Open by default to catch attention
+  const [isOpen, setIsOpen] = useState(false); // Closed by default, opens on click
   const phoneNumber = "5511952025568";
   const displayPhone = "(11) 95202-5568";
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=Olá! Estou no site da M Moto e tenho uma dúvida sobre minha compra.`;

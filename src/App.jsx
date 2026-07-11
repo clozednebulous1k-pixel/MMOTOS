@@ -7,7 +7,7 @@ import ProductModal from './components/ProductModal';
 import CartSidebar from './components/CartSidebar';
 import CheckoutFlow from './components/CheckoutFlow';
 import OrderSuccess from './components/OrderSuccess';
-import GoogleLoginModal from './components/GoogleLoginModal';
+import LoginModal from './components/LoginModal';
 import ProductRequestForm from './components/ProductRequestForm';
 import VirtualAssistant from './components/VirtualAssistant';
 import AdminPanel from './components/AdminPanel';
@@ -40,6 +40,11 @@ export default function App() {
     }
   ]);
 
+  // Registered Admin list (simulated Firebase Auth Database)
+  const [registeredAdmins, setRegisteredAdmins] = useState([
+    { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
+  ]);
+
   // Security and Login states
   const [user, setUser] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -56,7 +61,6 @@ export default function App() {
     };
 
     const handleKeyDown = (e) => {
-      // Block F12
       if (e.key === 'F12') {
         e.preventDefault();
         setSecurityAlert({
@@ -64,7 +68,6 @@ export default function App() {
           message: 'Atalho F12 Bloqueado! Inspecionamento do sistema desativado por motivos de segurança.'
         });
       }
-      // Block Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (DevTools)
       if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
         e.preventDefault();
         setSecurityAlert({
@@ -72,7 +75,6 @@ export default function App() {
           message: 'Atalho do Desenvolvedor Bloqueado! Acesso restrito por políticas de segurança.'
         });
       }
-      // Block Ctrl+U (View Source)
       if (e.ctrlKey && e.key === 'u') {
         e.preventDefault();
         setSecurityAlert({
@@ -111,7 +113,7 @@ export default function App() {
         show: true,
         message: 'Alerta de Segurança: Tentativa de Injeção de Código (SQL/XSS) bloqueada com sucesso!'
       });
-      return ''; // Block & clear the input
+      return ''; 
     }
     return value;
   };
@@ -186,7 +188,7 @@ export default function App() {
 
   const handleOrderComplete = (data) => {
     setOrderData(data);
-    setCartItems([]); // Clear cart
+    setCartItems([]); 
     setCurrentView('success');
   };
 
@@ -204,7 +206,6 @@ export default function App() {
 
   const handleEditProduct = (updatedProd) => {
     setCatalogProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
-    // Sincronizar preços do carrinho em tempo real se o item estiver lá
     setCartItems(prev => prev.map(item => item.id === updatedProd.id ? { ...item, price: updatedProd.price } : item));
   };
 
@@ -217,6 +218,24 @@ export default function App() {
 
   const handleAddRequest = (newRequest) => {
     setRequests(prev => [newRequest, ...prev]);
+  };
+
+  const handleRegisterAdmin = (newAdmin) => {
+    setRegisteredAdmins(prev => [...prev, newAdmin]);
+  };
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    if (userData.role === 'admin') {
+      setCurrentView('admin');
+    } else {
+      setCurrentView('store');
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setCurrentView('store');
   };
 
   // Import mock listings representing user's ML items
@@ -264,13 +283,11 @@ export default function App() {
     ];
 
     setCatalogProducts(prev => {
-      // Avoid duplicates
       const filteredPrev = prev.filter(p => p.id < 100);
       return [...mlItems, ...filteredPrev];
     });
   };
 
-  // Filter products by category and search
   const filteredProducts = catalogProducts.filter((product) => {
     const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
     const matchesSearch = 
@@ -332,7 +349,8 @@ export default function App() {
           onResetView={handleResetToStore}
           user={user}
           onLoginClick={() => setIsLoginModalOpen(true)}
-          onLogoutClick={() => setUser(null)}
+          onLogoutClick={handleLogout}
+          onAdminPanelClick={() => setCurrentView('admin')}
         />
       )}
 
@@ -383,6 +401,9 @@ export default function App() {
             onRemoveProduct={handleRemoveProduct}
             onImportMLMock={handleImportMLMock}
             onClose={handleResetToStore}
+            user={user}
+            onLogout={handleLogout}
+            onLoginFromAdmin={handleLoginSuccess}
           />
         )}
 
@@ -410,15 +431,6 @@ export default function App() {
             <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
               CNPJ: 00.000.000/0001-00 | Av. das Duas Rodas, 1000 - São Paulo, SP
             </p>
-            <div style={{ marginTop: '15px' }}>
-              <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); setCurrentView('admin'); }}
-                style={{ color: 'var(--primary)', textDecoration: 'underline', fontSize: '12px', fontWeight: '600' }}
-              >
-                Área Administrativa (Restrito)
-              </a>
-            </div>
           </div>
         </footer>
       )}
@@ -442,11 +454,13 @@ export default function App() {
         />
       )}
 
-      {/* Google Login popup Modal */}
-      <GoogleLoginModal
+      {/* Login / Register popup Modal */}
+      <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLoginSuccess={setUser}
+        onLoginSuccess={handleLoginSuccess}
+        registeredAdmins={registeredAdmins}
+        onRegisterAdmin={handleRegisterAdmin}
       />
 
       {/* Floating WhatsApp contact widget */}

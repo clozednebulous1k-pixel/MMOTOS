@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, LayoutGrid, FileInput, RotateCw, Plus, Edit, Trash2, ArrowLeft, LogOut, CheckCircle, UserPlus, User } from 'lucide-react';
 
 export default function AdminPanel({ 
@@ -8,13 +8,16 @@ export default function AdminPanel({
   onEditProduct, 
   onRemoveProduct,
   onImportMLMock,
-  onClose 
+  onClose,
+  user,
+  onLogout,
+  onLoginFromAdmin
 }) {
-  // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false); // Toggle between Login and Register
+  // Sync local authentication with global user role
+  const [isAuthenticated, setIsAuthenticated] = useState(user && user.role === 'admin');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   
-  // Simulated Database of Admins (Firebase Auth Mock)
+  // Simulated Database of Admins (synchronized locally as fallback)
   const [admins, setAdmins] = useState([
     { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
   ]);
@@ -25,10 +28,14 @@ export default function AdminPanel({
   const [regName, setRegName] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  const [currentAdminUser, setCurrentAdminUser] = useState(null);
+
+  // Sync state if global user changes
+  useEffect(() => {
+    setIsAuthenticated(user && user.role === 'admin');
+  }, [user]);
 
   // Dashboard Tabs
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests', 'catalog', 'ml_import'
+  const [activeTab, setActiveTab] = useState('requests');
 
   // Product Form states
   const [isEditing, setIsEditing] = useState(null);
@@ -40,7 +47,6 @@ export default function AdminPanel({
   const [mlSuccess, setMlSuccess] = useState(false);
   const [mlSyncing, setMlSyncing] = useState(false);
 
-  // Sanitization helper
   const sanitizeInput = (text) => {
     return text.replace(/['";\-]/g, '').trim();
   };
@@ -50,14 +56,17 @@ export default function AdminPanel({
     const cleanEmail = sanitizeInput(email);
     const cleanPassword = sanitizeInput(password);
 
-    // Search inside the admins database array
     const matchedAdmin = admins.find(admin => admin.email === cleanEmail && admin.password === cleanPassword);
     
     if (matchedAdmin) {
+      onLoginFromAdmin({
+        name: matchedAdmin.name,
+        email: matchedAdmin.email,
+        role: 'admin',
+        avatarUrl: ''
+      });
       setIsAuthenticated(true);
-      setCurrentAdminUser(matchedAdmin);
       setAuthError('');
-      // Clear forms
       setEmail('');
       setPassword('');
     } else {
@@ -87,7 +96,6 @@ export default function AdminPanel({
       return;
     }
 
-    // Check if email already registered
     const exists = admins.some(admin => admin.email === cleanEmail);
     if (exists) {
       setAuthError('Este e-mail já está cadastrado.');
@@ -95,14 +103,18 @@ export default function AdminPanel({
     }
 
     const newAdmin = { name: cleanName, email: cleanEmail, password: cleanPassword };
-    
-    // Add to simulated database
     setAdmins(prev => [...prev, newAdmin]);
-    setCurrentAdminUser(newAdmin);
+    
+    // Log in globally
+    onLoginFromAdmin({
+      name: cleanName,
+      email: cleanEmail,
+      role: 'admin',
+      avatarUrl: ''
+    });
+    
     setIsAuthenticated(true);
     setAuthError('');
-    
-    // Clear forms
     setRegName('');
     setEmail('');
     setPassword('');
@@ -197,7 +209,7 @@ export default function AdminPanel({
         price: 499.00,
         rating: 4.7,
         reviews: 24,
-        description: 'Produto importado diretamente do anúncio do Mercado Livre. Totalmente sincronizado com o estoque e frete grátis da M Moto.',
+        description: 'Produto importado diretamente do anúncio do Mercado Livre. Sincronizado com o estoque e frete grátis da M Moto.',
         image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=600&q=80',
         isBestSeller: false,
         mlLinked: true
@@ -208,12 +220,7 @@ export default function AdminPanel({
     }, 1500);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentAdminUser(null);
-  };
-
-  // AUTHENTICATION VIEW (LOGIN / REGISTER)
+  // Auth View (Login / Register fallback)
   if (!isAuthenticated) {
     return (
       <div className="modal-overlay">
@@ -227,7 +234,6 @@ export default function AdminPanel({
             <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>M Moto Peças e Acessórios</p>
           </div>
 
-          {/* Login / Register Toggle Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '20px' }}>
             <button
               onClick={() => { setIsRegisterMode(false); setAuthError(''); }}
@@ -263,7 +269,6 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* LOGIN FORM */}
           {!isRegisterMode ? (
             <form onSubmit={handleLogin}>
               <div className="form-group">
@@ -301,7 +306,6 @@ export default function AdminPanel({
               </button>
             </form>
           ) : (
-            /* REGISTER FORM */
             <form onSubmit={handleRegister}>
               <div className="form-group">
                 <label className="form-label">Nome Completo</label>
@@ -333,7 +337,7 @@ export default function AdminPanel({
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="Min. 6 dígitos"
+                    placeholder="Mín. 6 dígitos"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -376,7 +380,7 @@ export default function AdminPanel({
     );
   }
 
-  // LOGGED IN DASHBOARD VIEW
+  // Dashboard View
   return (
     <div style={{ background: '#f5f5f7', minHeight: '100vh', padding: '30px 0' }}>
       <div className="container">
@@ -399,7 +403,7 @@ export default function AdminPanel({
             <div>
               <h2 style={{ fontSize: '18px' }}>M Moto | Painel do Administrador</h2>
               <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>
-                Conectado como: <strong>{currentAdminUser?.name || 'Admin'}</strong> ({currentAdminUser?.email})
+                Conectado como: <strong>{user?.name || 'Admin'}</strong> ({user?.email})
               </span>
             </div>
           </div>
@@ -408,7 +412,7 @@ export default function AdminPanel({
             <button onClick={onClose} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
               <ArrowLeft size={15} /> Ver Site
             </button>
-            <button onClick={handleLogout} className="checkout-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
+            <button onClick={onLogout} className="checkout-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
               <LogOut size={15} /> Sair
             </button>
           </div>

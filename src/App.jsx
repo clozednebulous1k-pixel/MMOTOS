@@ -14,6 +14,10 @@ import AdminPanel from './components/AdminPanel';
 import { products, categories } from './data/products';
 import { Shield, AlertTriangle } from 'lucide-react';
 
+// Firebase Import
+import { db, isFirebaseActive } from './firebase';
+import { collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+
 export default function App() {
   const [currentView, setCurrentView] = useState('store'); // 'store', 'checkout', 'success', 'admin'
   const [activeCategory, setActiveCategory] = useState('all');
@@ -23,7 +27,7 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderData, setOrderData] = useState(null);
 
-  // Re-active Catalog Database (initialized from frozen registry)
+  // Re-active Catalog Database (initialized from local file, overwritten by Firestore if active)
   const [catalogProducts, setCatalogProducts] = useState([...products]);
   
   // Re-active Requests Database (for Admin panel tracking)
@@ -40,7 +44,7 @@ export default function App() {
     }
   ]);
 
-  // Registered Admin list (simulated Firebase Auth Database)
+  // Registered Admin list (simulated database list)
   const [registeredAdmins, setRegisteredAdmins] = useState([
     { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
   ]);
@@ -49,6 +53,46 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [securityAlert, setSecurityAlert] = useState({ show: false, message: '' });
+
+  // 1. Sync Catalog and Requests with Firestore if Firebase is active
+  useEffect(() => {
+    if (!isFirebaseActive) return;
+
+    const loadFirestoreData = async () => {
+      try {
+        // A. Load Catalog Products
+        const prodSnap = await getDocs(collection(db, 'products'));
+        if (prodSnap.empty) {
+          // Initialize Firestore with default items if empty
+          console.log("Inicializando Firestore com produtos padrão...");
+          for (const item of products) {
+            await setDoc(doc(db, 'products', item.id.toString()), item);
+          }
+          setCatalogProducts([...products]);
+        } else {
+          const loadedProducts = [];
+          prodSnap.forEach((doc) => {
+            loadedProducts.push({ ...doc.data() });
+          });
+          setCatalogProducts(loadedProducts);
+        }
+
+        // B. Load Customer Requests
+        const reqSnap = await getDocs(collection(db, 'requests'));
+        if (!reqSnap.empty) {
+          const loadedRequests = [];
+          reqSnap.forEach((doc) => {
+            loadedRequests.push({ ...doc.data() });
+          });
+          setRequests(loadedRequests);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dados do Firestore:", err);
+      }
+    };
+
+    loadFirestoreData();
+  }, []);
 
   // Security: Keyboard DevTools and Right-Click Blockers
   useEffect(() => {
@@ -199,24 +243,52 @@ export default function App() {
     setOrderData(null);
   };
 
-  // Admin and Product DB mutations
-  const handleAddProduct = (newProd) => {
+  // Admin and Product DB mutations (with Firestore persistence support)
+  const handleAddProduct = async (newProd) => {
+    if (isFirebaseActive) {
+      try {
+        await setDoc(doc(db, 'products', newProd.id.toString()), newProd);
+      } catch (e) {
+        console.error("Erro ao salvar produto no Firestore:", e);
+      }
+    }
     setCatalogProducts(prev => [newProd, ...prev]);
   };
 
-  const handleEditProduct = (updatedProd) => {
+  const handleEditProduct = async (updatedProd) => {
+    if (isFirebaseActive) {
+      try {
+        await updateDoc(doc(db, 'products', updatedProd.id.toString()), updatedProd);
+      } catch (e) {
+        console.error("Erro ao atualizar produto no Firestore:", e);
+      }
+    }
     setCatalogProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
     setCartItems(prev => prev.map(item => item.id === updatedProd.id ? { ...item, price: updatedProd.price } : item));
   };
 
-  const handleRemoveProduct = (id) => {
+  const handleRemoveProduct = async (id) => {
     if (confirm('Tem certeza que deseja excluir este produto do catálogo?')) {
+      if (isFirebaseActive) {
+        try {
+          await deleteDoc(doc(db, 'products', id.toString()));
+        } catch (e) {
+          console.error("Erro ao excluir produto no Firestore:", e);
+        }
+      }
       setCatalogProducts(prev => prev.filter(p => p.id !== id));
       setCartItems(prev => prev.filter(item => item.id !== id));
     }
   };
 
-  const handleAddRequest = (newRequest) => {
+  const handleAddRequest = async (newRequest) => {
+    if (isFirebaseActive) {
+      try {
+        await addDoc(collection(db, 'requests'), newRequest);
+      } catch (e) {
+        console.error("Erro ao salvar solicitação no Firestore:", e);
+      }
+    }
     setRequests(prev => [newRequest, ...prev]);
   };
 
@@ -234,17 +306,26 @@ export default function App() {
     setCurrentView('store');
   };
 
-  // Import mock or real listings representing user's ML items
-  const handleImportMLMock = (realItems) => {
+  // Sincronizar catálogo Mercado Livre
+  const handleImportMLMock = async (realItems) => {
     if (realItems && realItems.length > 0) {
+      if (isFirebaseActive) {
+        try {
+          for (const item of realItems) {
+            await setDoc(doc(db, 'products', item.id.toString()), item);
+          }
+        } catch (e) {
+          console.error("Erro ao salvar lote de anúncios no Firestore:", e);
+        }
+      }
       setCatalogProducts(prev => {
-        // Filter out existing duplicates from the same seller
         const filteredPrev = prev.filter(p => !realItems.some(ri => ri.id === p.id));
         return [...realItems, ...filteredPrev];
       });
       return;
     }
 
+    // Mock fallback if no real array is passed
     const mlItems = [
       {
         id: 101,
@@ -271,21 +352,18 @@ export default function App() {
         image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=600&q=80',
         isBestSeller: false,
         mlLinked: true
-      },
-      {
-        id: 103,
-        title: 'Capacete Off-Road Troy Lee Designs SE4',
-        category: 'capacetes',
-        categoryName: 'Capacetes',
-        price: 1890.00,
-        rating: 4.9,
-        reviews: 48,
-        description: 'Capacete profissional de motocross ultra-ventilado com tecnologia de proteção MIPS integrada.',
-        image: 'https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?auto=format&fit=crop&w=600&q=80',
-        isBestSeller: false,
-        mlLinked: true
       }
     ];
+
+    if (isFirebaseActive) {
+      try {
+        for (const item of mlItems) {
+          await setDoc(doc(db, 'products', item.id.toString()), item);
+        }
+      } catch (e) {
+        console.error("Erro ao salvar lote fictício no Firestore:", e);
+      }
+    }
 
     setCatalogProducts(prev => {
       const filteredPrev = prev.filter(p => p.id < 100);
@@ -427,7 +505,7 @@ export default function App() {
               </div>
               <span style={{ color: 'var(--text-muted)' }}>|</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>
-                <Shield size={12} /> Proteção Anti-Tampering & SSL
+                <Shield size={12} /> {isFirebaseActive ? 'Banco de Dados Firestore Conectado' : 'Proteção Anti-Tampering & SSL'}
               </div>
             </div>
             <p style={{ marginBottom: '8px' }}>

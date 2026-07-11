@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-// Firebase configuration using Vite environment variables (will be injected by Vercel)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -12,10 +11,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let db = null;
+let auth = null;
+let isFirebaseActive = false;
 
-// Export instances to be used across the app
-export const db = getFirestore(app);
-export const auth = getAuth(app);
-export default app;
+// Resilient check to prevent app crashes when environment variables are not yet populated
+if (firebaseConfig.projectId && firebaseConfig.apiKey && firebaseConfig.projectId !== 'seu_project_id') {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+    isFirebaseActive = true;
+    console.log("Firebase conectado com sucesso!");
+  } catch (error) {
+    console.warn("Falha ao inicializar o Firebase. Rodando em modo de cache local.", error);
+  }
+} else {
+  console.log("Variáveis do Firebase não detectadas. Rodando em modo de cache local.");
+}
+
+export { db, auth, isFirebaseActive };
+export default db;

@@ -10,17 +10,35 @@ import OrderSuccess from './components/OrderSuccess';
 import GoogleLoginModal from './components/GoogleLoginModal';
 import ProductRequestForm from './components/ProductRequestForm';
 import VirtualAssistant from './components/VirtualAssistant';
+import AdminPanel from './components/AdminPanel';
 import { products, categories } from './data/products';
 import { Shield, AlertTriangle } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('store'); // 'store', 'checkout', 'success'
+  const [currentView, setCurrentView] = useState('store'); // 'store', 'checkout', 'success', 'admin'
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cartItems, setCartItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderData, setOrderData] = useState(null);
+
+  // Re-active Catalog Database (initialized from frozen registry)
+  const [catalogProducts, setCatalogProducts] = useState([...products]);
+  
+  // Re-active Requests Database (for Admin panel tracking)
+  const [requests, setRequests] = useState([
+    {
+      customerName: 'Lucas Oliveira',
+      contactInfo: '(11) 98765-4321',
+      productName: 'Escapamento Vance & Hines Harley Iron 883'
+    },
+    {
+      customerName: 'Juliana Costa',
+      contactInfo: '(19) 98211-5544',
+      productName: 'Guidão Ape Hanger 14" Preto Fosco'
+    }
+  ]);
 
   // Security and Login states
   const [user, setUser] = useState(null);
@@ -85,8 +103,6 @@ export default function App() {
 
   // Security: Active input sanitization (Anti-SQL Injection & Anti-XSS)
   const sanitizeSearchInput = (value) => {
-    // SQL Injection patterns: ' OR 1=1, --, UNION, SELECT, DROP
-    // XSS patterns: <script, javascript:
     const sqlRegex = /('|"|--|;|UNION|SELECT|DROP|INSERT|OR\s+['"]?\d+['"]?\s*=\s*['"]?\d+|OR\s+['"]?[a-zA-Z]+['"]?\s*=\s*['"]?[a-zA-Z]+)/i;
     const xssRegex = /(<script|javascript:|onload=|onerror=)/i;
 
@@ -105,11 +121,10 @@ export default function App() {
     setSearchQuery(cleanValue);
   };
 
-  // Secure Price Calculations (lookup directly in frozen database)
+  // Secure Price Calculations (lookup directly in reactive database)
   const getSecureSubtotal = () => {
     return cartItems.reduce((acc, item) => {
-      // Lookup the official item price from the frozen registry
-      const originalProduct = products.find((p) => p.id === item.id);
+      const originalProduct = catalogProducts.find((p) => p.id === item.id);
       const officialPrice = originalProduct ? originalProduct.price : 0;
       return acc + (officialPrice * item.quantity);
     }, 0);
@@ -182,8 +197,81 @@ export default function App() {
     setOrderData(null);
   };
 
+  // Admin and Product DB mutations
+  const handleAddProduct = (newProd) => {
+    setCatalogProducts(prev => [newProd, ...prev]);
+  };
+
+  const handleEditProduct = (updatedProd) => {
+    setCatalogProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+    // Sincronizar preços do carrinho em tempo real se o item estiver lá
+    setCartItems(prev => prev.map(item => item.id === updatedProd.id ? { ...item, price: updatedProd.price } : item));
+  };
+
+  const handleRemoveProduct = (id) => {
+    if (confirm('Tem certeza que deseja excluir este produto do catálogo?')) {
+      setCatalogProducts(prev => prev.filter(p => p.id !== id));
+      setCartItems(prev => prev.filter(item => item.id !== id));
+    }
+  };
+
+  const handleAddRequest = (newRequest) => {
+    setRequests(prev => [newRequest, ...prev]);
+  };
+
+  // Import mock listings representing user's ML items
+  const handleImportMLMock = () => {
+    const mlItems = [
+      {
+        id: 101,
+        title: 'Guidão Esportivo Oxxy Fatbar Alumínio',
+        category: 'pecas',
+        categoryName: 'Peças & Motores',
+        price: 389.00,
+        rating: 4.8,
+        reviews: 312,
+        description: 'Guidão de alta performance em alumínio aeronáutico anodizado. Máxima resistência contra torção e excelente ergonomia.',
+        image: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=600&q=80',
+        isBestSeller: true,
+        mlLinked: true
+      },
+      {
+        id: 102,
+        title: 'Kit Protetor de Motor e Carenagem Coyote Speed',
+        category: 'pecas',
+        categoryName: 'Peças & Motores',
+        price: 679.00,
+        rating: 4.7,
+        reviews: 95,
+        description: 'Protetor robusto feito em aço carbono de alta resistência. Protege as carenagens laterais e o motor em quedas leves.',
+        image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=600&q=80',
+        isBestSeller: false,
+        mlLinked: true
+      },
+      {
+        id: 103,
+        title: 'Capacete Off-Road Troy Lee Designs SE4',
+        category: 'capacetes',
+        categoryName: 'Capacetes',
+        price: 1890.00,
+        rating: 4.9,
+        reviews: 48,
+        description: 'Capacete profissional de motocross ultra-ventilado com tecnologia de proteção MIPS integrada.',
+        image: 'https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?auto=format&fit=crop&w=600&q=80',
+        isBestSeller: false,
+        mlLinked: true
+      }
+    ];
+
+    setCatalogProducts(prev => {
+      // Avoid duplicates
+      const filteredPrev = prev.filter(p => p.id < 100);
+      return [...mlItems, ...filteredPrev];
+    });
+  };
+
   // Filter products by category and search
-  const filteredProducts = products.filter((product) => {
+  const filteredProducts = catalogProducts.filter((product) => {
     const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
     const matchesSearch = 
       product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,21 +318,23 @@ export default function App() {
               fontSize: '13px'
             }}
           >
-            Disparar
+            Fechar
           </button>
         </div>
       )}
 
-      <Header
-        cartCount={getSecureCartCount()}
-        onCartClick={() => setIsCartOpen(true)}
-        searchQuery={searchQuery}
-        setSearchQuery={handleSearchChange}
-        onResetView={handleResetToStore}
-        user={user}
-        onLoginClick={() => setIsLoginModalOpen(true)}
-        onLogoutClick={() => setUser(null)}
-      />
+      {currentView !== 'admin' && (
+        <Header
+          cartCount={getSecureCartCount()}
+          onCartClick={() => setIsCartOpen(true)}
+          searchQuery={searchQuery}
+          setSearchQuery={handleSearchChange}
+          onResetView={handleResetToStore}
+          user={user}
+          onLoginClick={() => setIsLoginModalOpen(true)}
+          onLogoutClick={() => setUser(null)}
+        />
+      )}
 
       <main style={{ flexGrow: 1 }}>
         {currentView === 'store' && (
@@ -284,31 +374,54 @@ export default function App() {
           />
         )}
 
+        {currentView === 'admin' && (
+          <AdminPanel
+            productsList={catalogProducts}
+            requestsList={requests}
+            onAddProduct={handleAddProduct}
+            onEditProduct={handleEditProduct}
+            onRemoveProduct={handleRemoveProduct}
+            onImportMLMock={handleImportMLMock}
+            onClose={handleResetToStore}
+          />
+        )}
+
         {/* Request form above footer, shown on store catalog page */}
         {currentView === 'store' && (
-          <ProductRequestForm />
+          <ProductRequestForm onAddRequest={handleAddRequest} />
         )}
       </main>
 
-      <footer className="footer">
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <div className="footer-logo">
-              M <span>Moto</span>
+      {currentView !== 'admin' && (
+        <footer className="footer">
+          <div className="container">
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <div className="footer-logo">
+                M <span>Moto</span>
+              </div>
+              <span style={{ color: 'var(--text-muted)' }}>|</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>
+                <Shield size={12} /> Proteção Anti-Tampering & SSL
+              </div>
             </div>
-            <span style={{ color: 'var(--text-muted)' }}>|</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>
-              <Shield size={12} /> Proteção Anti-Tampering & SSL
+            <p style={{ marginBottom: '8px' }}>
+              M Moto Peças e Acessórios Ltda. © 2026 - Todos os direitos reservados.
+            </p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              CNPJ: 00.000.000/0001-00 | Av. das Duas Rodas, 1000 - São Paulo, SP
+            </p>
+            <div style={{ marginTop: '15px' }}>
+              <a 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); setCurrentView('admin'); }}
+                style={{ color: 'var(--primary)', textDecoration: 'underline', fontSize: '12px', fontWeight: '600' }}
+              >
+                Área Administrativa (Restrito)
+              </a>
             </div>
           </div>
-          <p style={{ marginBottom: '10px' }}>
-            M Moto Peças e Acessórios Ltda. © 2026 - Todos os direitos reservados.
-          </p>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            CNPJ: 00.000.000/0001-00 | Av. das Duas Rodas, 1000 - São Paulo, SP
-          </p>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* Cart sidebar */}
       <CartSidebar
@@ -336,8 +449,10 @@ export default function App() {
         onLoginSuccess={setUser}
       />
 
-      {/* Floating Virtual Assistant chatbot */}
-      <VirtualAssistant />
+      {/* Floating WhatsApp contact widget */}
+      {currentView !== 'admin' && (
+        <VirtualAssistant />
+      )}
     </div>
   );
 }

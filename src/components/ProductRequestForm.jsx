@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Send, CheckCircle } from 'lucide-react';
 
-export default function ProductRequestForm() {
+export default function ProductRequestForm({ onAddRequest }) {
   const [productName, setProductName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
@@ -14,7 +14,15 @@ export default function ProductRequestForm() {
       return;
     }
 
-    // Simulate database write / trigger webhook
+    // Call the parent state dispatch
+    if (onAddRequest) {
+      onAddRequest({
+        productName: productName.trim(),
+        customerName: customerName.trim(),
+        contactInfo: contactInfo.trim()
+      });
+    }
+
     setSubmitted(true);
     setProductName('');
     setCustomerName('');
@@ -22,7 +30,7 @@ export default function ProductRequestForm() {
 
     setTimeout(() => {
       setSubmitted(false);
-    }, 6000); // Reset after 6 seconds
+    }, 6000); // Reset feedback banner
   };
 
   return (

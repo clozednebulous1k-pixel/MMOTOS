@@ -2,64 +2,59 @@ import React from 'react';
 
 export default function Logo({ height = 48, light = true }) {
   const textColor = light ? '#111111' : '#ffffff';
+  const brandColor = '#d32f2f'; // Red
   
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <svg 
         height={height} 
-        viewBox="0 0 240 70" 
+        viewBox="0 0 245 70" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
         style={{ overflow: 'visible' }}
       >
-        {/* LOGO SYMBOL: M + MOTORCYCLE EMERGES */}
-        <g transform="translate(5, 5)">
-          {/* Stylized M */}
-          {/* Left Vertical/Diagonal Stem of M (Dark/White depending on theme) */}
+        {/* LOGO SYMBOL: The official motorcycle M symbol from the user's logo */}
+        <g transform="translate(5, 8) scale(1.15)">
+          {/* Rear Wheel Guard (Left Arc) */}
           <path 
-            d="M5,48 L15,10 L28,25 L16,48 Z" 
-            fill={light ? "#111111" : "#ffffff"} 
+            d="M8,32 C8,21 16,12 28,12 C32,12 36,13 39,15" 
+            stroke={brandColor} 
+            strokeWidth="3.5" 
+            strokeLinecap="round" 
           />
-          {/* Right Vertical/Diagonal Stem of M (Red) */}
+          {/* Front Wheel Guard (Right Arc) */}
           <path 
-            d="M32,22 L42,10 L52,48 L39,48 Z" 
-            fill="#d32f2f" 
+            d="M62,15 C65,13 69,12 73,12 C85,12 93,21 93,32" 
+            stroke={brandColor} 
+            strokeWidth="3.5" 
+            strokeLinecap="round" 
           />
-
-          {/* Motorcycle emerging from the center dip of the M */}
-          <g transform="translate(18, 12) scale(0.65)">
-            {/* Speed trails/lines coming out of the M */}
-            <path d="M-15,15 L10,15" stroke="#d32f2f" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
-            <path d="M-22,25 L5,25" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
-            <path d="M-10,35 L12,35" stroke="#d32f2f" strokeWidth="3" strokeLinecap="round" opacity="0.9" />
-
-            {/* Front Wheel & Fork of the emerging bike */}
-            <circle cx="52" cy="28" r="10" stroke="#d32f2f" strokeWidth="3" fill="none" />
-            <circle cx="52" cy="28" r="6" stroke={light ? "#111" : "#fff"} strokeWidth="1.5" />
-            <line x1="38" y1="12" x2="52" y2="28" stroke={light ? "#111" : "#fff"} strokeWidth="2.5" />
-            
-            {/* Handlebar */}
-            <line x1="38" y1="12" x2="30" y2="15" stroke="#d32f2f" strokeWidth="3" strokeLinecap="round" />
-
-            {/* Bodywork / Fuel tank / Fairing of the motorcycle speeding forward */}
-            <path 
-              d="M10,22 C10,14 26,10 34,12 L44,22 L36,32 L22,30 Z" 
-              fill={light ? "#111111" : "#ffffff"} 
-              stroke={light ? "#111111" : "#ffffff"}
-              strokeWidth="1"
-              strokeLinejoin="round"
-            />
-            {/* Red accent line on the bike */}
-            <path d="M22,16 L34,14 L38,18" fill="none" stroke="#d32f2f" strokeWidth="2" />
-          </g>
+          
+          {/* Seat / Tail Section */}
+          <path 
+            d="M23,17 L35,12 L43,15 L32,23 Z" 
+            fill={textColor} 
+          />
+          
+          {/* Front Fork / Handlebars */}
+          <path 
+            d="M57,9 L64,10 L78,28 L72,29 Z" 
+            fill={textColor} 
+          />
+          
+          {/* Stylized M Chassis */}
+          <path 
+            d="M30,32 L42,16 L49,24 L56,16 L67,32 H58 L52,24 L49,28 L46,24 L40,32 Z" 
+            fill={brandColor} 
+          />
         </g>
 
         {/* LOGO TEXT */}
         {/* "M" */}
         <text 
-          x="75" 
+          x="125" 
           y="35" 
-          fill="#d32f2f" 
+          fill={brandColor} 
           fontFamily="'Outfit', sans-serif" 
           fontWeight="900" 
           fontSize="24"
@@ -67,9 +62,9 @@ export default function Logo({ height = 48, light = true }) {
         >
           M
         </text>
-        {/* "MOTOPEÇAS" */}
+        {/* "MOTO" */}
         <text 
-          x="100" 
+          x="150" 
           y="35" 
           fill={textColor} 
           fontFamily="'Outfit', sans-serif" 
@@ -78,19 +73,20 @@ export default function Logo({ height = 48, light = true }) {
           fontStyle="italic"
           letterSpacing="0.5"
         >
-          MOTOPEÇAS
+          MOTO
         </text>
-        {/* "E ACESSÓRIOS" */}
+        {/* "PEÇAS E ACESSÓRIOS" */}
         <text 
-          x="75" 
+          x="125" 
           y="50" 
-          fill="#d32f2f" 
+          fill={textColor} 
           fontFamily="'Inter', sans-serif" 
-          fontWeight="700" 
-          fontSize="9"
-          letterSpacing="3"
+          fontWeight="600" 
+          fontSize="8.5"
+          letterSpacing="2.5"
+          opacity="0.85"
         >
-          E ACESSÓRIOS
+          PEÇAS E ACESSÓRIOS
         </text>
       </svg>
     </div>

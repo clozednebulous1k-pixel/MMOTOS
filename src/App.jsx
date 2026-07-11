@@ -234,8 +234,17 @@ export default function App() {
     setCurrentView('store');
   };
 
-  // Import mock listings representing user's ML items
-  const handleImportMLMock = () => {
+  // Import mock or real listings representing user's ML items
+  const handleImportMLMock = (realItems) => {
+    if (realItems && realItems.length > 0) {
+      setCatalogProducts(prev => {
+        // Filter out existing duplicates from the same seller
+        const filteredPrev = prev.filter(p => !realItems.some(ri => ri.id === p.id));
+        return [...realItems, ...filteredPrev];
+      });
+      return;
+    }
+
     const mlItems = [
       {
         id: 101,

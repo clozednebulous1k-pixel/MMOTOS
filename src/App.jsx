@@ -220,10 +220,6 @@ export default function App() {
     setRequests(prev => [newRequest, ...prev]);
   };
 
-  const handleRegisterAdmin = (newAdmin) => {
-    setRegisteredAdmins(prev => [...prev, newAdmin]);
-  };
-
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     if (userData.role === 'admin') {
@@ -460,7 +456,6 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         registeredAdmins={registeredAdmins}
-        onRegisterAdmin={handleRegisterAdmin}
       />
 
       {/* Floating WhatsApp contact widget */}

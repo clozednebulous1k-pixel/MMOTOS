@@ -10,7 +10,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isAdminRole, setIsAdminRole] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
@@ -102,23 +101,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
     const userData = {
       name: cleanName,
       email: cleanEmail,
-      role: isAdminRole ? 'admin' : 'customer',
+      role: 'customer',
       avatarUrl: ''
     };
-
-    if (isAdminRole && onRegisterAdmin) {
-      // Add to admin list in App state
-      onRegisterAdmin({
-        name: cleanName,
-        email: cleanEmail,
-        password: cleanPassword
-      });
-    }
 
     onLoginSuccess(userData);
     setError('');
     onClose();
-    alert(`Conta de ${isAdminRole ? 'Administrador' : 'Cliente'} criada com sucesso!`);
+    alert('Conta de Cliente criada com sucesso!');
   };
 
   return (
@@ -384,16 +374,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-title)' }}>
-                    <input
-                      type="checkbox"
-                      checked={isAdminRole}
-                      onChange={(e) => setIsAdminRole(e.target.checked)}
-                    />
-                    Esta é uma conta administrativa (Admin)
-                  </label>
-                </div>
 
                 {error && (
                   <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>

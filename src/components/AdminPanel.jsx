@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, LayoutGrid, FileInput, RotateCw, Plus, Edit, Trash2, ArrowLeft, LogOut, CheckCircle, Smartphone } from 'lucide-react';
+import { Shield, LayoutGrid, FileInput, RotateCw, Plus, Edit, Trash2, ArrowLeft, LogOut, CheckCircle, UserPlus, User } from 'lucide-react';
 
 export default function AdminPanel({ 
   productsList, 
@@ -10,16 +10,28 @@ export default function AdminPanel({
   onImportMLMock,
   onClose 
 }) {
+  // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false); // Toggle between Login and Register
+  
+  // Simulated Database of Admins (Firebase Auth Mock)
+  const [admins, setAdmins] = useState([
+    { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
+  ]);
+
+  // Form inputs for Auth
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [regName, setRegName] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [currentAdminUser, setCurrentAdminUser] = useState(null);
 
   // Dashboard Tabs
   const [activeTab, setActiveTab] = useState('requests'); // 'requests', 'catalog', 'ml_import'
 
   // Product Form states
-  const [isEditing, setIsEditing] = useState(null); // holds product object or null
+  const [isEditing, setIsEditing] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [prodForm, setProdForm] = useState({ title: '', category: 'acessorios', price: '', description: '', image: '', rating: 4.8, reviews: 10, isBestSeller: false, mlLinked: true });
 
@@ -28,14 +40,75 @@ export default function AdminPanel({
   const [mlSuccess, setMlSuccess] = useState(false);
   const [mlSyncing, setMlSyncing] = useState(false);
 
+  // Sanitization helper
+  const sanitizeInput = (text) => {
+    return text.replace(/['";\-]/g, '').trim();
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
-    if (email === 'admin@mmoto.com' && password === 'admin123') {
+    const cleanEmail = sanitizeInput(email);
+    const cleanPassword = sanitizeInput(password);
+
+    // Search inside the admins database array
+    const matchedAdmin = admins.find(admin => admin.email === cleanEmail && admin.password === cleanPassword);
+    
+    if (matchedAdmin) {
       setIsAuthenticated(true);
-      setLoginError('');
+      setCurrentAdminUser(matchedAdmin);
+      setAuthError('');
+      // Clear forms
+      setEmail('');
+      setPassword('');
     } else {
-      setLoginError('Credenciais inválidas! Use admin@mmoto.com / admin123');
+      setAuthError('E-mail ou senha incorretos! (Padrão: admin@mmoto.com / admin123)');
     }
+  };
+
+  const handleRegister = (e) => {
+    e.preventDefault();
+    const cleanName = sanitizeInput(regName);
+    const cleanEmail = sanitizeInput(email);
+    const cleanPassword = sanitizeInput(password);
+    const cleanConfirm = sanitizeInput(regConfirmPassword);
+
+    if (!cleanName || !cleanEmail || !cleanPassword) {
+      setAuthError('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setAuthError('A senha deve conter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (cleanPassword !== cleanConfirm) {
+      setAuthError('As senhas não coincidem.');
+      return;
+    }
+
+    // Check if email already registered
+    const exists = admins.some(admin => admin.email === cleanEmail);
+    if (exists) {
+      setAuthError('Este e-mail já está cadastrado.');
+      return;
+    }
+
+    const newAdmin = { name: cleanName, email: cleanEmail, password: cleanPassword };
+    
+    // Add to simulated database
+    setAdmins(prev => [...prev, newAdmin]);
+    setCurrentAdminUser(newAdmin);
+    setIsAuthenticated(true);
+    setAuthError('');
+    
+    // Clear forms
+    setRegName('');
+    setEmail('');
+    setPassword('');
+    setRegConfirmPassword('');
+    setIsRegisterMode(false);
+    alert('Conta de administrador criada com sucesso!');
   };
 
   const handleSaveProduct = (e) => {
@@ -69,7 +142,6 @@ export default function AdminPanel({
       setIsEditing(null);
     }
 
-    // Reset Form
     setProdForm({ title: '', category: 'acessorios', price: '', description: '', image: '', rating: 4.8, reviews: 10, isBestSeller: false, mlLinked: true });
   };
 
@@ -95,11 +167,10 @@ export default function AdminPanel({
     setProdForm({ title: '', category: 'acessorios', price: '', description: '', image: 'https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?auto=format&fit=crop&w=600&q=80', rating: 4.8, reviews: 12, isBestSeller: false, mlLinked: true });
   };
 
-  // Simula a sincronização da conta do Mercado Livre
   const handleMLSync = () => {
     setMlSyncing(true);
     setTimeout(() => {
-      onImportMLMock(); // Triggers importing mock items to catalog in App.jsx
+      onImportMLMock();
       setMlSyncing(false);
       setMlSuccess(true);
       setTimeout(() => setMlSuccess(false), 5000);
@@ -115,7 +186,6 @@ export default function AdminPanel({
 
     setMlSyncing(true);
     setTimeout(() => {
-      // Create a mock imported product based on URL keywords or general mock
       const cleanTitle = mlUrl.split('/').pop()?.replace(/-/g, ' ') || 'Peça Importada Mercado Livre';
       const capitalizedTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
       
@@ -138,66 +208,175 @@ export default function AdminPanel({
     }, 1500);
   };
 
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentAdminUser(null);
+  };
+
+  // AUTHENTICATION VIEW (LOGIN / REGISTER)
   if (!isAuthenticated) {
     return (
       <div className="modal-overlay">
-        <div className="checkout-card" style={{ maxWidth: '400px', width: '100%', margin: '0 auto', background: '#ffffff', border: '1px solid var(--border)' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ display: 'inline-flex', background: 'rgba(211,47,47,0.08)', color: 'var(--primary)', padding: '12px', borderRadius: '50%', marginBottom: '10px' }}>
+        <div className="checkout-card" style={{ maxWidth: '400px', width: '100%', margin: '0 auto', background: '#ffffff', border: '1px solid var(--border)', borderRadius: '8px' }}>
+          
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'inline-flex', background: 'rgba(211,47,47,0.08)', color: 'var(--primary)', padding: '12px', borderRadius: '50%', marginBottom: '8px' }}>
               <Shield size={24} />
             </div>
             <h3 style={{ fontSize: '20px' }}>Painel Administrativo</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>M Moto Peças e Acessórios</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>M Moto Peças e Acessórios</p>
           </div>
 
-          <form onSubmit={handleLogin}>
-            <div className="form-group">
-              <label className="form-label">E-mail Administrativo</label>
-              <input
-                type="email"
-                className="form-input"
-                placeholder="admin@mmoto.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Senha de Acesso</label>
-              <input
-                type="password"
-                className="form-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            {loginError && (
-              <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>
-                {loginError}
-              </p>
-            )}
-
-            <button type="submit" className="checkout-btn" style={{ width: '100%' }}>
-              Autenticar
+          {/* Login / Register Toggle Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '20px' }}>
+            <button
+              onClick={() => { setIsRegisterMode(false); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: !isRegisterMode ? '2px solid var(--primary)' : 'none',
+                color: !isRegisterMode ? 'var(--text-title)' : 'var(--text-muted)',
+                fontWeight: !isRegisterMode ? '700' : '500',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              Fazer Login
             </button>
-          </form>
+            <button
+              onClick={() => { setIsRegisterMode(true); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: isRegisterMode ? '2px solid var(--primary)' : 'none',
+                color: isRegisterMode ? 'var(--text-title)' : 'var(--text-muted)',
+                fontWeight: isRegisterMode ? '700' : '500',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              Criar Conta
+            </button>
+          </div>
+
+          {/* LOGIN FORM */}
+          {!isRegisterMode ? (
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <label className="form-label">E-mail Administrativo</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="admin@mmoto.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Senha</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {authError && (
+                <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>
+                  {authError}
+                </p>
+              )}
+
+              <button type="submit" className="checkout-btn" style={{ width: '100%' }}>
+                Entrar no Painel
+              </button>
+            </form>
+          ) : (
+            /* REGISTER FORM */
+            <form onSubmit={handleRegister}>
+              <div className="form-group">
+                <label className="form-label">Nome Completo</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Seu nome"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">E-mail de Acesso</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="email@mmoto.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Senha</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Min. 6 dígitos"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Confirmar Senha</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Confirme"
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {authError && (
+                <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>
+                  {authError}
+                </p>
+              )}
+
+              <button type="submit" className="checkout-btn" style={{ width: '100%' }}>
+                Registrar Administrador
+              </button>
+            </form>
+          )}
 
           <button 
             onClick={onClose} 
             className="btn-secondary" 
             style={{ width: '100%', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
           >
-            <ArrowLeft size={16} /> Voltar para Loja
+            <ArrowLeft size={16} /> Voltar para a Loja
           </button>
         </div>
       </div>
     );
   }
 
+  // LOGGED IN DASHBOARD VIEW
   return (
     <div style={{ background: '#f5f5f7', minHeight: '100vh', padding: '30px 0' }}>
       <div className="container">
@@ -220,7 +399,7 @@ export default function AdminPanel({
             <div>
               <h2 style={{ fontSize: '18px' }}>M Moto | Painel do Administrador</h2>
               <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>
-                Firebase Sync Active • Modo Testes Autorizado
+                Conectado como: <strong>{currentAdminUser?.name || 'Admin'}</strong> ({currentAdminUser?.email})
               </span>
             </div>
           </div>
@@ -229,7 +408,7 @@ export default function AdminPanel({
             <button onClick={onClose} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
               <ArrowLeft size={15} /> Ver Site
             </button>
-            <button onClick={() => setIsAuthenticated(false)} className="checkout-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
+            <button onClick={handleLogout} className="checkout-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
               <LogOut size={15} /> Sair
             </button>
           </div>
@@ -561,7 +740,7 @@ export default function AdminPanel({
                       fontSize: '13px'
                     }}>
                       <CheckCircle size={20} />
-                      <strong>Sincronização Completa!</strong> 4 anúncios adicionais do Mercado Livre foram importados para o banco de dados.
+                      <strong>Sincronização Completa!</strong> Anúncios adicionais do Mercado Livre foram importados para o banco de dados.
                     </div>
                   ) : (
                     <button

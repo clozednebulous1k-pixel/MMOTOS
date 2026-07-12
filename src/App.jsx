@@ -46,7 +46,7 @@ export default function App() {
 
   // Registered Admin list (simulated database list)
   const [registeredAdmins, setRegisteredAdmins] = useState([
-    { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
+    { name: 'Alessandro', email: 'Alessandro@gmail.com', password: 'Slkt@2024' }
   ]);
 
   // Security and Login states

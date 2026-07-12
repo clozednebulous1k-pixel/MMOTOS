@@ -18,7 +18,7 @@ export default function AdminPanel({
   
   // Simulated Database of Admins
   const [admins, setAdmins] = useState([
-    { name: 'Administrador M Moto', email: 'admin@mmoto.com', password: 'admin123' }
+    { name: 'Alessandro', email: 'Alessandro@gmail.com', password: 'Slkt@2024' }
   ]);
 
   // Form inputs for Auth
@@ -72,7 +72,7 @@ export default function AdminPanel({
       setEmail('');
       setPassword('');
     } else {
-      setAuthError('E-mail ou senha incorretos! (Padrão: admin@mmoto.com / admin123)');
+      setAuthError('E-mail ou senha incorretos! Verifique suas credenciais.');
     }
   };
 
@@ -363,7 +363,7 @@ export default function AdminPanel({
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="admin@mmoto.com"
+                  placeholder="Seu e-mail de administrador"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

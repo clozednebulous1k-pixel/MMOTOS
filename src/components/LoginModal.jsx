@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { X, Shield, Mail, Lock, User, Check, AlertCircle } from 'lucide-react';
+import { X, Shield, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { auth, isFirebaseActive } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess, registeredAdmins, onRegisterAdmin }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, registeredAdmins }) {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [isCustomMode, setIsCustomMode] = useState(false); // Toggle to custom email login
+  const [isLoading, setIsLoading] = useState(false);
 
   // Form Inputs
   const [name, setName] = useState('');
@@ -14,31 +16,17 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
 
   if (!isOpen) return null;
 
-  const mockGoogleAccounts = [
-    {
-      name: 'Pedro Silva',
-      email: 'pedrosilva.moto@gmail.com',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=60',
-      role: 'customer'
-    },
-    {
-      name: 'Mariana Souza',
-      email: 'marianasouza.ride@gmail.com',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=60',
-      role: 'customer'
-    }
-  ];
-
   const sanitize = (text) => {
     return text.replace(/['";\-]/g, '').trim();
   };
 
-  const handleGoogleLogin = (acc) => {
-    onLoginSuccess(acc);
-    onClose();
+  const determineRole = (userEmail) => {
+    // Check if the email belongs to an administrator
+    const isAdmin = registeredAdmins.some(admin => admin.email.toLowerCase() === userEmail.toLowerCase());
+    return isAdmin ? 'admin' : 'customer';
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     const cleanEmail = sanitize(email);
     const cleanPassword = sanitize(password);
@@ -48,35 +36,55 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
       return;
     }
 
-    // Check if matching admin first
-    const matchedAdmin = registeredAdmins.find(
-      (admin) => admin.email === cleanEmail && admin.password === cleanPassword
-    );
-
-    if (matchedAdmin) {
-      onLoginSuccess({
-        name: matchedAdmin.name,
-        email: matchedAdmin.email,
-        role: 'admin',
-        avatarUrl: ''
-      });
-      setError('');
-      onClose();
-      return;
-    }
-
-    // Default Customer Login (if not matching admin list, log in as normal customer)
-    onLoginSuccess({
-      name: cleanEmail.split('@')[0],
-      email: cleanEmail,
-      role: 'customer',
-      avatarUrl: ''
-    });
+    setIsLoading(true);
     setError('');
-    onClose();
+
+    if (isFirebaseActive && auth) {
+      // Real Firebase Authentication
+      try {
+        await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        const role = determineRole(cleanEmail);
+        onLoginSuccess({
+          name: cleanEmail.split('@')[0],
+          email: cleanEmail,
+          role: role,
+          avatarUrl: ''
+        });
+        onClose();
+      } catch (err) {
+        console.error("Firebase Auth Error:", err);
+        setError('E-mail ou senha incorretos (Firebase). Verifique suas credenciais.');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Fallback offline / simulated auth for development resilience
+      console.warn("Firebase desativado. Usando login simulado.");
+      const matchedAdmin = registeredAdmins.find(
+        (admin) => admin.email.toLowerCase() === cleanEmail.toLowerCase() && admin.password === cleanPassword
+      );
+
+      if (matchedAdmin) {
+        onLoginSuccess({
+          name: matchedAdmin.name,
+          email: matchedAdmin.email,
+          role: 'admin',
+          avatarUrl: ''
+        });
+      } else {
+        onLoginSuccess({
+          name: cleanEmail.split('@')[0],
+          email: cleanEmail,
+          role: 'customer',
+          avatarUrl: ''
+        });
+      }
+      setIsLoading(false);
+      onClose();
+    }
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     const cleanName = sanitize(name);
     const cleanEmail = sanitize(email);
@@ -98,17 +106,45 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
       return;
     }
 
-    const userData = {
-      name: cleanName,
-      email: cleanEmail,
-      role: 'customer',
-      avatarUrl: ''
-    };
-
-    onLoginSuccess(userData);
+    setIsLoading(true);
     setError('');
-    onClose();
-    alert('Conta de Cliente criada com sucesso!');
+
+    if (isFirebaseActive && auth) {
+      // Real Firebase Registration
+      try {
+        await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        const role = determineRole(cleanEmail);
+        onLoginSuccess({
+          name: cleanName,
+          email: cleanEmail,
+          role: role,
+          avatarUrl: ''
+        });
+        alert('Conta criada com sucesso no Firebase!');
+        onClose();
+      } catch (err) {
+        console.error("Firebase Auth Error:", err);
+        if (err.code === 'auth/email-already-in-use') {
+          setError('Este e-mail já está cadastrado.');
+        } else {
+          setError('Erro ao criar conta. Tente novamente.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Fallback offline / simulated registration
+      const role = determineRole(cleanEmail);
+      onLoginSuccess({
+        name: cleanName,
+        email: cleanEmail,
+        role: role,
+        avatarUrl: ''
+      });
+      alert('Conta de Cliente criada com sucesso (Modo Simulado)!');
+      setIsLoading(false);
+      onClose();
+    }
   };
 
   return (
@@ -121,7 +157,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
           boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
           padding: '24px',
           border: '1px solid #dadce0',
-          position: 'relative'
+          position: 'relative',
+          background: '#ffffff'
         }}
       >
         <button 
@@ -142,9 +179,9 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
 
         {/* Brand header in modal */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '20px', color: 'var(--text-title)' }}>Entrar na M Moto</h3>
+          <h3 style={{ fontSize: '20px', color: 'var(--text-title)' }}>M Moto Login</h3>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Acesse sua conta para gerenciar compras ou o painel administrativo.
+            {isRegisterMode ? 'Crie sua conta para acompanhar seus pedidos.' : 'Acesse sua conta para gerenciar compras.'}
           </p>
         </div>
 
@@ -184,230 +221,108 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, registered
           </button>
         </div>
 
-        {!isCustomMode && !isRegisterMode ? (
-          <div>
-            {/* Google Login Area */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-              <button 
-                onClick={() => handleGoogleLogin(mockGoogleAccounts[0])}
-                className="google-login-btn"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: '#ffffff',
-                  border: '1px solid #dadce0',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#3c4043'
-                }}
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Entrar com Google (Pedro Silva)
-              </button>
-              <button 
-                onClick={() => handleGoogleLogin(mockGoogleAccounts[1])}
-                className="google-login-btn"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: '#ffffff',
-                  border: '1px solid #dadce0',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#3c4043'
-                }}
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Entrar com Google (Mariana Souza)
-              </button>
-            </div>
+        <div>
+          {!isRegisterMode ? (
+            /* LOGIN FORM */
+            <form onSubmit={handleLoginSubmit}>
+              <div className="form-group">
+                <label className="form-label">E-mail</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="Seu e-mail"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div style={{ textAlign: 'center', margin: '15px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-              — OU ENTRAR COM E-MAIL —
-            </div>
+              <div className="form-group">
+                <label className="form-label">Senha</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-            <button
-              onClick={() => setIsCustomMode(true)}
-              style={{
-                width: '100%',
-                background: '#ffffff',
-                border: '1px solid #cccccc',
-                color: 'var(--text-title)',
-                padding: '10px 14px',
-                borderRadius: '4px',
-                fontWeight: '600',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            >
-              Usar E-mail e Senha
-            </button>
-          </div>
-        ) : (
-          /* TRADITIONAL EMAIL FLOW */
-          <div>
-            {!isRegisterMode ? (
-              /* LOGIN */
-              <form onSubmit={handleLoginSubmit}>
-                <div className="form-group">
-                  <label className="form-label">E-mail</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="email@exemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+              {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', justifyContent: 'center', fontWeight: '500' }}>
+                  <AlertCircle size={14} /> {error}
                 </div>
+              )}
 
+              <button type="submit" className="checkout-btn" style={{ width: '100%', opacity: isLoading ? 0.7 : 1 }} disabled={isLoading}>
+                {isLoading ? 'Autenticando...' : 'Entrar'}
+              </button>
+            </form>
+          ) : (
+            /* REGISTER FORM */
+            <form onSubmit={handleRegisterSubmit}>
+              <div className="form-group">
+                <label className="form-label">Nome Completo</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Seu nome"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">E-mail</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="Seu e-mail"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Senha</label>
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="••••••••"
+                    placeholder="Mín. 6 dígitos"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </div>
-
-                {error && (
-                  <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>
-                    {error}
-                  </p>
-                )}
-
-                <button type="submit" className="checkout-btn" style={{ width: '100%' }}>
-                  Entrar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setIsCustomMode(false); setError(''); }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#1a73e8',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    marginTop: '16px',
-                    textAlign: 'center'
-                  }}
-                >
-                  Voltar para login Google
-                </button>
-              </form>
-            ) : (
-              /* REGISTER (CADASTRO) */
-              <form onSubmit={handleRegisterSubmit}>
                 <div className="form-group">
-                  <label className="form-label">Nome Completo</label>
+                  <label className="form-label">Confirmar Senha</label>
                   <input
-                    type="text"
+                    type="password"
                     className="form-input"
-                    placeholder="Seu nome"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Confirme a senha"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                   />
                 </div>
+              </div>
 
-                <div className="form-group">
-                  <label className="form-label">E-mail</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="email@exemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+              {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', justifyContent: 'center', fontWeight: '500' }}>
+                  <AlertCircle size={14} /> {error}
                 </div>
+              )}
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Senha</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="Mín. 6 dígitos"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Confirmar Senha</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="Confirme"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-
-                {error && (
-                  <p style={{ color: 'var(--primary)', fontSize: '12px', marginBottom: '16px', textAlign: 'center', fontWeight: '500' }}>
-                    {error}
-                  </p>
-                )}
-
-                <button type="submit" className="checkout-btn" style={{ width: '100%' }}>
-                  Cadastrar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setIsRegisterMode(false); setIsCustomMode(false); setError(''); }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#1a73e8',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    marginTop: '16px',
-                    textAlign: 'center'
-                  }}
-                >
-                  Voltar para login Google
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-
+              <button type="submit" className="checkout-btn" style={{ width: '100%', opacity: isLoading ? 0.7 : 1 }} disabled={isLoading}>
+                {isLoading ? 'Registrando...' : 'Cadastrar Conta'}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

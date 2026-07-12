@@ -243,8 +243,11 @@ export default function App() {
     setOrderData(null);
   };
 
-  // Admin and Product DB mutations (with Firestore persistence support)
   const handleAddProduct = async (newProd) => {
+    // 1. Optimistic UI update: update state immediately
+    setCatalogProducts(prev => [newProd, ...prev]);
+
+    // 2. Perform database mutation in background
     if (isFirebaseActive) {
       try {
         await setDoc(doc(db, 'products', newProd.id.toString()), newProd);
@@ -252,10 +255,13 @@ export default function App() {
         console.error("Erro ao salvar produto no Firestore:", e);
       }
     }
-    setCatalogProducts(prev => [newProd, ...prev]);
   };
 
   const handleEditProduct = async (updatedProd) => {
+    // Optimistic UI update
+    setCatalogProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+    setCartItems(prev => prev.map(item => item.id === updatedProd.id ? { ...item, price: updatedProd.price } : item));
+    
     if (isFirebaseActive) {
       try {
         await updateDoc(doc(db, 'products', updatedProd.id.toString()), updatedProd);
@@ -263,12 +269,14 @@ export default function App() {
         console.error("Erro ao atualizar produto no Firestore:", e);
       }
     }
-    setCatalogProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
-    setCartItems(prev => prev.map(item => item.id === updatedProd.id ? { ...item, price: updatedProd.price } : item));
   };
 
   const handleRemoveProduct = async (id) => {
     if (confirm('Tem certeza que deseja excluir este produto do catálogo?')) {
+      // Optimistic UI update
+      setCatalogProducts(prev => prev.filter(p => p.id !== id));
+      setCartItems(prev => prev.filter(item => item.id !== id));
+      
       if (isFirebaseActive) {
         try {
           await deleteDoc(doc(db, 'products', id.toString()));
@@ -276,8 +284,6 @@ export default function App() {
           console.error("Erro ao excluir produto no Firestore:", e);
         }
       }
-      setCatalogProducts(prev => prev.filter(p => p.id !== id));
-      setCartItems(prev => prev.filter(item => item.id !== id));
     }
   };
 
@@ -309,6 +315,12 @@ export default function App() {
   // Sincronizar catálogo Mercado Livre
   const handleImportMLMock = async (realItems) => {
     if (realItems && realItems.length > 0) {
+      // Optimistic UI update
+      setCatalogProducts(prev => {
+        const filteredPrev = prev.filter(p => !realItems.some(ri => ri.id === p.id));
+        return [...realItems, ...filteredPrev];
+      });
+
       if (isFirebaseActive) {
         try {
           for (const item of realItems) {
@@ -318,10 +330,6 @@ export default function App() {
           console.error("Erro ao salvar lote de anúncios no Firestore:", e);
         }
       }
-      setCatalogProducts(prev => {
-        const filteredPrev = prev.filter(p => !realItems.some(ri => ri.id === p.id));
-        return [...realItems, ...filteredPrev];
-      });
       return;
     }
 
